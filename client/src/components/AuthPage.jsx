@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { signIn, signUp } from '../lib/auth';
+import { useAuth } from '../lib/useAuth.jsx';
 
 export default function AuthPage() {
+  const { signIn, signUp } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,9 +17,9 @@ export default function AuthPage() {
 
     try {
       if (isLogin) {
-        await signIn.email({ email, password });
+        await signIn({ email, password });
       } else {
-        await signUp.email({ email, password, name });
+        await signUp({ email, password, name });
       }
       // Redirect will happen automatically on successful auth
     } catch (err) {

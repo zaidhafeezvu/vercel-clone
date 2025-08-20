@@ -1,11 +1,11 @@
-import { useSession } from './lib/auth';
+import { useAuth } from './lib/useAuth.jsx';
 import AuthPage from './components/AuthPage';
 import Dashboard from './components/Dashboard';
 
 function App() {
-  const { data: session, isPending } = useSession();
+  const { session, loading } = useAuth();
 
-  if (isPending) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">

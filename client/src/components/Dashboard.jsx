@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { signOut, useSession } from '../lib/auth';
+import { useAuth } from '../lib/useAuth.jsx';
 import { api } from '../lib/api';
 import { Plus, ExternalLink, Clock, CheckCircle, XCircle } from 'lucide-react';
 
 export default function Dashboard() {
-  const { data: session } = useSession();
+  const { session, signOut } = useAuth();
   const [projects, setProjects] = useState([]);
   const [deployments, setDeployments] = useState({});
   const [loading, setLoading] = useState(true);
