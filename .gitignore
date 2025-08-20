@@ -75,3 +75,6 @@ build/Release
 # Temporary files
 tmp/
 temp/
+
+# Generated deployment files
+public/
