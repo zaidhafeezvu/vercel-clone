@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { useAuth } from './lib/useAuth.jsx';
+import LandingPage from './components/LandingPage';
 import AuthPage from './components/AuthPage';
 import Dashboard from './components/Dashboard';
 
 function App() {
   const { session, loading } = useAuth();
+  const [showAuth, setShowAuth] = useState(false);
 
   if (loading) {
     return (
@@ -16,7 +19,15 @@ function App() {
     );
   }
 
-  return session ? <Dashboard /> : <AuthPage />;
+  if (session) {
+    return <Dashboard />;
+  }
+
+  if (showAuth) {
+    return <AuthPage onBack={() => setShowAuth(false)} />;
+  }
+
+  return <LandingPage onGetStarted={() => setShowAuth(true)} />;
 }
 
 export default App;

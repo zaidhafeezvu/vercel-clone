@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useAuth } from '../lib/useAuth.jsx';
+import { ArrowLeft } from 'lucide-react';
 
-export default function AuthPage() {
+export default function AuthPage({ onBack }) {
   const { signIn, signUp } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -32,6 +33,16 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center">
       <div className="max-w-md w-full mx-4">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="flex items-center text-gray-400 hover:text-white mb-8 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </button>
+        )}
+        
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2">Vercel Clone</h1>
           <p className="text-gray-400">
