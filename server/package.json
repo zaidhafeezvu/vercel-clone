@@ -1,18 +1,10 @@
 {
   "name": "vercel-clone-server",
   "version": "1.0.0",
-  "description": "Backend for Vercel clone",
   "main": "src/index.js",
-  "type": "module",
-  "scripts": {
-    "dev": "nodemon src/index.js",
-    "start": "node src/index.js",
-    "build": "echo 'No build step needed for this server'"
-  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "better-auth": "^0.7.0",
-    "better-sqlite3": "^11.3.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -23,7 +15,11 @@
     "multer": "^1.4.5-lts.1",
     "nanoid": "^5.1.5"
   },
-  "devDependencies": {
-    "nodemon": "^3.1.7"
-  }
+  "description": "Backend for Vercel clone",
+  "scripts": {
+    "dev": "bun --watch src/index.js",
+    "start": "bun run src/index.js",
+    "build": "echo 'No build step needed for this server'"
+  },
+  "type": "module"
 }
