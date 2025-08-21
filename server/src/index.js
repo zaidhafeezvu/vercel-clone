@@ -4,16 +4,100 @@ import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { db } from './db/index.js';
 import { projects, deployments } from './db/schema.js';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
+
+// Get the project root directory
+const PROJECT_ROOT = path.resolve(__dirname, '../../');
+const PUBLIC_DIR = path.join(PROJECT_ROOT, 'public');
+const CLIENT_DIST_DIR = path.join(PROJECT_ROOT, 'client/dist');
+
+// Ensure public directory exists
+async function ensurePublicDirectory() {
+  try {
+    await fs.mkdir(PUBLIC_DIR, { recursive: true });
+    console.log('Public directory ensured');
+  } catch (error) {
+    console.error('Error creating public directory:', error);
+  }
+}
+
+// Copy directory recursively
+async function copyDirectory(src, dest) {
+  try {
+    await fs.mkdir(dest, { recursive: true });
+    const entries = await fs.readdir(src, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+      
+      if (entry.isDirectory()) {
+        await copyDirectory(srcPath, destPath);
+      } else {
+        await fs.copyFile(srcPath, destPath);
+      }
+    }
+  } catch (error) {
+    console.error('Error copying directory:', error);
+    throw error;
+  }
+}
+
+// Fix asset paths in HTML file for deployment
+async function fixHtmlAssetPaths(htmlFilePath) {
+  try {
+    let htmlContent = await fs.readFile(htmlFilePath, 'utf8');
+    
+    // Replace absolute paths with relative paths
+    htmlContent = htmlContent.replace(/src="\/assets\//g, 'src="./assets/');
+    htmlContent = htmlContent.replace(/href="\/assets\//g, 'href="./assets/');
+    htmlContent = htmlContent.replace(/href="\/vite\.svg"/g, 'href="./vite.svg"');
+    
+    await fs.writeFile(htmlFilePath, htmlContent);
+    console.log('Fixed asset paths in HTML file');
+  } catch (error) {
+    console.error('Error fixing HTML asset paths:', error);
+    throw error;
+  }
+}
+
+// Generate deployment files in the public folder
+async function generateDeploymentFiles() {
+  // Check if client build exists
+  try {
+    await fs.access(CLIENT_DIST_DIR);
+  } catch (error) {
+    throw new Error('Client build not found. Please run "npm run build:client" first.');
+  }
+  
+  // Copy client build files to public directory
+  await copyDirectory(CLIENT_DIST_DIR, PUBLIC_DIR);
+  
+  // Fix asset paths in the HTML file
+  const htmlFilePath = path.join(PUBLIC_DIR, 'index.html');
+  await fixHtmlAssetPaths(htmlFilePath);
+  
+  console.log('Deployment files generated in public folder');
+  return PUBLIC_DIR;
+}
+
+// Initialize public directory on startup
+await ensurePublicDirectory();
 
 // Middleware
 app.use(cors({
@@ -22,6 +106,9 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(cookieParser());
+
+// Serve static files from public directory
+app.use(express.static(PUBLIC_DIR));
 
 // Simple user store (in production, this would be in the database)
 const users = new Map();
@@ -198,31 +285,53 @@ app.post('/api/projects/:projectId/deploy', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
     
+    const deploymentId = nanoid();
     const deployment = {
-      id: nanoid(),
+      id: deploymentId,
       projectId,
       status: 'pending',
-      url: `https://${nanoid()}.vercel-clone.app`,
+      url: `http://localhost:${PORT}`,
       commitMessage: commitMessage || 'Deploy from dashboard',
       createdAt: new Date()
     };
     
     await db.insert(deployments).values(deployment);
     
-    // Simulate deployment process
+    // Start deployment process
     setTimeout(async () => {
       try {
+        // Update to building status
         await db.update(deployments)
           .set({ status: 'building' })
-          .where(eq(deployments.id, deployment.id));
+          .where(eq(deployments.id, deploymentId));
           
+        // Generate deployment files
         setTimeout(async () => {
-          await db.update(deployments)
-            .set({ status: 'success' })
-            .where(eq(deployments.id, deployment.id));
+          try {
+            await generateDeploymentFiles();
+            
+            // Update to success status
+            await db.update(deployments)
+              .set({ status: 'success' })
+              .where(eq(deployments.id, deploymentId));
+            
+            console.log(`Deployment ${deploymentId} completed successfully`);
+          } catch (fileError) {
+            console.error('Error generating deployment files:', fileError);
+            
+            // Update to error status
+            await db.update(deployments)
+              .set({ status: 'error' })
+              .where(eq(deployments.id, deploymentId));
+          }
         }, 3000);
       } catch (error) {
-        console.error('Deployment simulation error:', error);
+        console.error('Deployment process error:', error);
+        
+        // Update to error status
+        await db.update(deployments)
+          .set({ status: 'error' })
+          .where(eq(deployments.id, deploymentId));
       }
     }, 1000);
     
