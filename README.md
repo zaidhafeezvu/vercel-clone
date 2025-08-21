@@ -4,10 +4,11 @@ A minimal full-stack Vercel clone built with modern web technologies.
 
 ## Tech Stack
 
-- **Frontend**: Vite + React + Tailwind CSS
-- **Backend**: Express.js + Node.js
+- **Runtime**: Bun (JavaScript runtime and package manager)
+- **Frontend**: Vite + React + Tailwind CSS  
+- **Backend**: Express.js + Bun
 - **Authentication**: Better-Auth
-- **Database**: SQLite + Drizzle ORM
+- **Database**: SQLite (Bun's built-in SQLite) + Drizzle ORM
 - **UI Components**: Lucide React Icons
 
 ## Features
@@ -21,6 +22,8 @@ A minimal full-stack Vercel clone built with modern web technologies.
 
 ## Quick Start
 
+**Prerequisites**: [Bun](https://bun.sh/) (JavaScript runtime and package manager)
+
 1. **Clone the repository**
    ```bash
    git clone https://github.com/zaidhafeezvu/vercel-clone.git
@@ -29,7 +32,7 @@ A minimal full-stack Vercel clone built with modern web technologies.
 
 2. **Install dependencies**
    ```bash
-   npm run install:all
+   bun run install:all
    ```
 
 3. **Set up environment variables**
@@ -43,7 +46,7 @@ A minimal full-stack Vercel clone built with modern web technologies.
 
 4. **Start the development servers**
    ```bash
-   npm run dev
+   bun run dev
    ```
 
    This will start:
@@ -89,23 +92,23 @@ vercel-clone/
 ### Frontend Development
 ```bash
 cd client
-npm run dev
+bun run dev
 ```
 
 ### Backend Development
 ```bash
 cd server
-npm run dev
+bun run dev
 ```
 
 ### Build for Production
 ```bash
-npm run build
+bun run build
 ```
 
 ## Database Schema
 
-The application uses SQLite with Drizzle ORM:
+The application uses SQLite (Bun's built-in SQLite) with Drizzle ORM:
 
 - **users** - User accounts
 - **sessions** - Authentication sessions

@@ -1,25 +1,25 @@
 {
   "name": "vercel-clone",
   "version": "1.0.0",
-  "description": "A minimal full-stack Vercel clone",
+  "author": "",
   "main": "index.js",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "description": "A minimal full-stack Vercel clone",
+  "keywords": ["vercel", "clone", "deployment", "react", "express"],
+  "license": "MIT",
   "scripts": {
-    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
-    "dev:client": "cd client && npm run dev",
-    "dev:server": "cd server && npm run dev",
-    "build": "npm run build:client && npm run build:server",
-    "build:client": "cd client && npm run build",
-    "build:server": "cd server && npm run build",
-    "install:all": "npm install && cd client && npm install && cd ../server && npm install"
+    "dev": "concurrently \"bun run dev:client\" \"bun run dev:server\"",
+    "dev:client": "cd client && bun run dev",
+    "dev:server": "cd server && bun run dev",
+    "build": "bun run build:client && bun run build:server",
+    "build:client": "cd client && bun run build",
+    "build:server": "cd server && bun run build",
+    "install:all": "bun install && cd client && bun install && cd ../server && bun install"
   },
   "workspaces": [
     "client",
     "server"
-  ],
-  "devDependencies": {
-    "concurrently": "^8.2.2"
-  },
-  "keywords": ["vercel", "clone", "deployment", "react", "express"],
-  "author": "",
-  "license": "MIT"
+  ]
 }
