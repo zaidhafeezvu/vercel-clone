@@ -22,9 +22,14 @@ export async function extractZipFile(zipFilePath, extractToPath) {
     
     // Find the root directory in the zip (often projects are wrapped in a folder)
     let rootDir = null;
-    const topLevelEntries = zipEntries.filter(entry => !entry.entryName.includes('/') || entry.entryName.split('/').length === 2);
+    const topLevelEntries = zipEntries.filter(entry => {
+      const pathParts = entry.entryName.split('/').filter(part => part.length > 0);
+      return pathParts.length === 1 && entry.isDirectory;
+    });
     
-    if (topLevelEntries.length === 1 && topLevelEntries[0].isDirectory) {
+    console.log(`Found ${topLevelEntries.length} top-level directories`);
+    
+    if (topLevelEntries.length === 1) {
       rootDir = topLevelEntries[0].entryName.replace('/', '');
       console.log(`Detected root directory in zip: ${rootDir}`);
     }
