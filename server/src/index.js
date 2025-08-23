@@ -25,6 +25,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
 const PROJECT_ROOT = path.resolve(__dirname, '../../');
 const PUBLIC_DIR = path.join(PROJECT_ROOT, 'public');
 const CLIENT_DIST_DIR = path.join(PROJECT_ROOT, 'client/dist');
+const SAMPLE_APP_DIR = path.join(PROJECT_ROOT, 'server/sample-app');
+const DEPLOYMENTS_DIR = path.join(PROJECT_ROOT, 'deployments');
 
 // Ensure public directory exists
 async function ensurePublicDirectory() {
@@ -33,6 +35,16 @@ async function ensurePublicDirectory() {
     console.log('Public directory ensured');
   } catch (error) {
     console.error('Error creating public directory:', error);
+  }
+}
+
+// Ensure deployments directory exists
+async function ensureDeploymentsDirectory() {
+  try {
+    await fs.mkdir(DEPLOYMENTS_DIR, { recursive: true });
+    console.log('Deployments directory ensured');
+  } catch (error) {
+    console.error('Error creating deployments directory:', error);
   }
 }
 
@@ -76,28 +88,23 @@ async function fixHtmlAssetPaths(htmlFilePath) {
   }
 }
 
-// Generate deployment files in the public folder
-async function generateDeploymentFiles() {
-  // Check if client build exists
-  try {
-    await fs.access(CLIENT_DIST_DIR);
-  } catch (error) {
-    throw new Error('Client build not found. Please run "npm run build:client" first.');
-  }
+// Generate deployment files in a deployment-specific folder
+async function generateDeploymentFiles(deploymentId) {
+  const deploymentDir = path.join(DEPLOYMENTS_DIR, deploymentId);
   
-  // Copy client build files to public directory
-  await copyDirectory(CLIENT_DIST_DIR, PUBLIC_DIR);
+  // Create deployment-specific directory
+  await fs.mkdir(deploymentDir, { recursive: true });
   
-  // Fix asset paths in the HTML file
-  const htmlFilePath = path.join(PUBLIC_DIR, 'index.html');
-  await fixHtmlAssetPaths(htmlFilePath);
+  // Copy sample app files to deployment directory
+  await copyDirectory(SAMPLE_APP_DIR, deploymentDir);
   
-  console.log('Deployment files generated in public folder');
-  return PUBLIC_DIR;
+  console.log(`Deployment files generated for ${deploymentId}`);
+  return deploymentDir;
 }
 
-// Initialize public directory on startup
+// Initialize directories on startup
 await ensurePublicDirectory();
+await ensureDeploymentsDirectory();
 
 // Middleware
 app.use(cors({
@@ -107,8 +114,21 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
-// Serve static files from public directory
+// Serve static files from public directory (for dashboard)
 app.use(express.static(PUBLIC_DIR));
+
+// Serve deployment-specific static files
+app.use('/deployments/:deploymentId', (req, res, next) => {
+  const { deploymentId } = req.params;
+  const deploymentDir = path.join(DEPLOYMENTS_DIR, deploymentId);
+  
+  // Check if deployment directory exists
+  try {
+    express.static(deploymentDir)(req, res, next);
+  } catch (error) {
+    next();
+  }
+});
 
 // Simple user store (in production, this would be in the database)
 const users = new Map();
@@ -286,11 +306,12 @@ app.post('/api/projects/:projectId/deploy', requireAuth, async (req, res) => {
     }
     
     const deploymentId = nanoid();
+    const deploymentUrl = `http://localhost:${PORT}/deployments/${deploymentId}/`;
     const deployment = {
       id: deploymentId,
       projectId,
       status: 'pending',
-      url: `http://localhost:${PORT}`,
+      url: deploymentUrl,
       commitMessage: commitMessage || 'Deploy from dashboard',
       createdAt: new Date()
     };
@@ -308,7 +329,7 @@ app.post('/api/projects/:projectId/deploy', requireAuth, async (req, res) => {
         // Generate deployment files
         setTimeout(async () => {
           try {
-            await generateDeploymentFiles();
+            await generateDeploymentFiles(deploymentId);
             
             // Update to success status
             await db.update(deployments)
