@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth } from './lib/useAuth.jsx';
+import { useAuth } from './lib/useAuthHook';
 import LandingPage from './components/LandingPage';
 import AuthPage from './components/AuthPage';
 import Dashboard from './components/Dashboard';

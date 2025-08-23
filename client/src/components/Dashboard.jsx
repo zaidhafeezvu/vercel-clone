@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../lib/useAuth.jsx';
+import { useAuth } from '../lib/useAuthHook';
 import { api } from '../lib/api';
 import { Plus, ExternalLink, Clock, CheckCircle, XCircle } from 'lucide-react';
 

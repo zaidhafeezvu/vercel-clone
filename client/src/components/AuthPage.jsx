@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth } from '../lib/useAuth.jsx';
+import { useAuth } from '../lib/useAuthHook';
 import { ArrowLeft } from 'lucide-react';
 
 export default function AuthPage({ onBack }) {
