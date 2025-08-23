@@ -9,7 +9,7 @@ import { spawn } from 'child_process';
  */
 export async function detectPackageManager(projectPath) {
   const lockFiles = {
-    'bun.lockb': {
+    'bun.lock': {
       manager: 'bun',
       command: 'bun',
       installArgs: ['install'],
