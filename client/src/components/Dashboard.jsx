@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../lib/useAuthHook';
 import { api } from '../lib/api';
-import { Plus, ExternalLink, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, ExternalLink, Clock, CheckCircle, XCircle, Upload, Package } from 'lucide-react';
 
 export default function Dashboard() {
   const { session, signOut } = useAuth();
@@ -9,10 +9,21 @@ export default function Dashboard() {
   const [deployments, setDeployments] = useState({});
   const [loading, setLoading] = useState(true);
   const [showCreateProject, setShowCreateProject] = useState(false);
+  const [packageManagers, setPackageManagers] = useState(null);
 
   useEffect(() => {
     loadProjects();
+    loadPackageManagers();
   }, []);
+
+  const loadPackageManagers = async () => {
+    try {
+      const data = await api.getPackageManagers();
+      setPackageManagers(data);
+    } catch (error) {
+      console.error('Failed to load package managers:', error);
+    }
+  };
 
   const loadProjects = async () => {
     try {
@@ -110,6 +121,35 @@ export default function Dashboard() {
           </button>
         </div>
 
+        <div className="mb-8 bg-gray-800/50 p-4 rounded-lg">
+          <h3 className="text-lg font-semibold mb-2 flex items-center">
+            <Package className="w-5 h-5 mr-2" />
+            Package Manager Support
+          </h3>
+          {packageManagers ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {Object.entries(packageManagers.available).map(([manager, available]) => (
+                <div key={manager} className={`p-3 rounded-lg ${available ? 'bg-green-900/20 border border-green-500/30' : 'bg-red-900/20 border border-red-500/30'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium capitalize">{manager}</span>
+                    <span className={`text-xs px-2 py-1 rounded ${available ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {available ? 'Available' : 'Not Found'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="animate-pulse bg-gray-700 h-16 rounded-lg"></div>
+          )}
+          {packageManagers && (
+            <p className="text-sm text-gray-400 mt-3">
+              Recommended: <span className="text-blue-400 font-medium">{packageManagers.recommended}</span>
+              {packageManagers.recommended === 'npm' && ' (default)'}
+            </p>
+          )}
+        </div>
+
         {projects.length === 0 ? (
           <div className="text-center py-12">
             <div className="mb-4">
@@ -159,18 +199,61 @@ export default function Dashboard() {
 
 function ProjectCard({ project, deployments, onDeploy, getStatusIcon, getStatusColor }) {
   const [deploying, setDeploying] = useState(false);
+  const [uploadMode, setUploadMode] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef(null);
 
-  const handleDeploy = async () => {
+  const handleDeploy = async (uploadFile = null) => {
     setDeploying(true);
     try {
-      await api.createDeployment(project.id, {
-        commitMessage: 'Deploy from dashboard'
-      });
+      if (uploadFile) {
+        await api.createDeploymentWithFile(project.id, uploadFile, {
+          commitMessage: `Deploy from uploaded ZIP: ${uploadFile.name}`
+        });
+      } else {
+        await api.createDeployment(project.id, {
+          commitMessage: 'Deploy sample app from dashboard'
+        });
+      }
       setTimeout(onDeploy, 1000); // Reload data after a short delay
+      
+      // Reset upload state
+      setUploadMode(false);
+      setSelectedFile(null);
     } catch (error) {
       console.error('Deployment failed:', error);
+      alert('Deployment failed: ' + (error.response?.data?.error || error.message));
     } finally {
       setDeploying(false);
+    }
+  };
+
+  const handleFileSelect = (file) => {
+    if (file && file.type === 'application/zip') {
+      setSelectedFile(file);
+    } else {
+      alert('Please select a ZIP file');
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleFileSelect(files[0]);
     }
   };
 
@@ -181,14 +264,86 @@ function ProjectCard({ project, deployments, onDeploy, getStatusIcon, getStatusC
           <h3 className="text-xl font-semibold mb-1">{project.name}</h3>
           <p className="text-gray-400">{project.description}</p>
         </div>
-        <button
-          onClick={handleDeploy}
-          disabled={deploying}
-          className="bg-gray-800 text-white px-4 py-2 rounded-md font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors"
-        >
-          {deploying ? 'Deploying...' : 'Deploy'}
-        </button>
+        <div className="flex gap-2">
+          {!uploadMode ? (
+            <>
+              <button
+                onClick={() => handleDeploy()}
+                disabled={deploying}
+                className="bg-gray-800 text-white px-4 py-2 rounded-md font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors"
+              >
+                {deploying ? 'Deploying...' : 'Deploy Sample'}
+              </button>
+              <button
+                onClick={() => setUploadMode(true)}
+                disabled={deploying}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+              >
+                <Upload className="w-4 h-4" />
+                Upload & Deploy
+              </button>
+            </>
+          ) : (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setUploadMode(false)}
+                disabled={deploying}
+                className="bg-gray-600 text-white px-3 py-2 rounded-md font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
+      {uploadMode && (
+        <div className="mb-4">
+          <div 
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+              dragOver 
+                ? 'border-blue-500 bg-blue-500/10' 
+                : selectedFile 
+                  ? 'border-green-500 bg-green-500/10' 
+                  : 'border-gray-600 hover:border-gray-500'
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className={`w-8 h-8 mx-auto mb-2 ${dragOver ? 'text-blue-400' : selectedFile ? 'text-green-400' : 'text-gray-400'}`} />
+            {selectedFile ? (
+              <div>
+                <p className="text-green-400 font-medium">{selectedFile.name}</p>
+                <p className="text-sm text-gray-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-gray-300 mb-1">Drop your ZIP file here or click to browse</p>
+                <p className="text-sm text-gray-500">Supports projects with package.json and build scripts</p>
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".zip"
+              onChange={(e) => handleFileSelect(e.target.files?.[0])}
+              className="hidden"
+            />
+          </div>
+          
+          {selectedFile && (
+            <button
+              onClick={() => handleDeploy(selectedFile)}
+              disabled={deploying}
+              className="w-full mt-3 bg-green-600 text-white px-4 py-2 rounded-md font-medium hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            >
+              {deploying ? 'Deploying...' : 'Deploy Project'}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="space-y-3">
         <h4 className="font-medium text-gray-300">Recent Deployments</h4>
