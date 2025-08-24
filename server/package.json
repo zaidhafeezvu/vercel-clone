@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "main": "src/index.js",
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "bcryptjs": "^2.4.3",
     "better-auth": "^0.7.0",
+    "better-sqlite3": "^12.2.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -17,8 +19,8 @@
   },
   "description": "Backend for Vercel clone",
   "scripts": {
-    "dev": "bun --watch src/index.js",
-    "start": "bun run src/index.js",
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
     "build": "echo 'No build step needed for this server'"
   },
   "type": "module"

@@ -57,7 +57,7 @@ class AuthClient {
       }
       
       return response.json();
-    } catch (error) {
+    } catch {
       return null;
     }
   }

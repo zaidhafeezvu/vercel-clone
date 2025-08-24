@@ -7,10 +7,25 @@ import cookieParser from 'cookie-parser';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import multer from 'multer';
 import { db } from './db/index.js';
 import { projects, deployments } from './db/schema.js';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import { 
+  detectPackageManager, 
+  installDependencies, 
+  buildProject, 
+  detectBuildOutput,
+  parsePackageJson,
+  isPackageManagerAvailable
+} from './packageManager.js';
+import { 
+  extractZipFile, 
+  validateProject, 
+  cleanupTempFiles, 
+  copyBuildOutput 
+} from './fileUpload.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,10 +36,37 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
 
-// Get the project root directory
 const PROJECT_ROOT = path.resolve(__dirname, '../../');
 const PUBLIC_DIR = path.join(PROJECT_ROOT, 'public');
 const CLIENT_DIST_DIR = path.join(PROJECT_ROOT, 'client/dist');
+const SAMPLE_APP_DIR = path.join(PROJECT_ROOT, 'server/sample-app');
+const DEPLOYMENTS_DIR = path.join(PROJECT_ROOT, 'deployments');
+const TEMP_UPLOAD_DIR = path.join(PROJECT_ROOT, 'temp-uploads');
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, TEMP_UPLOAD_DIR);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = nanoid() + '-' + file.originalname;
+    cb(null, uniqueName);
+  }
+});
+
+const upload = multer({ 
+  storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/zip' || file.mimetype === 'application/x-zip-compressed') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only ZIP files are allowed'));
+    }
+  }
+});
 
 // Ensure public directory exists
 async function ensurePublicDirectory() {
@@ -33,6 +75,26 @@ async function ensurePublicDirectory() {
     console.log('Public directory ensured');
   } catch (error) {
     console.error('Error creating public directory:', error);
+  }
+}
+
+// Ensure deployments directory exists
+async function ensureDeploymentsDirectory() {
+  try {
+    await fs.mkdir(DEPLOYMENTS_DIR, { recursive: true });
+    console.log('Deployments directory ensured');
+  } catch (error) {
+    console.error('Error creating deployments directory:', error);
+  }
+}
+
+// Ensure temp upload directory exists
+async function ensureTempUploadDirectory() {
+  try {
+    await fs.mkdir(TEMP_UPLOAD_DIR, { recursive: true });
+    console.log('Temp upload directory ensured');
+  } catch (error) {
+    console.error('Error creating temp upload directory:', error);
   }
 }
 
@@ -76,28 +138,93 @@ async function fixHtmlAssetPaths(htmlFilePath) {
   }
 }
 
-// Generate deployment files in the public folder
-async function generateDeploymentFiles() {
-  // Check if client build exists
-  try {
-    await fs.access(CLIENT_DIST_DIR);
-  } catch (error) {
-    throw new Error('Client build not found. Please run "npm run build:client" first.');
+// Generate deployment files using real build process or fallback to sample
+async function generateDeploymentFiles(deploymentId, projectFilePath = null) {
+  const deploymentDir = path.join(DEPLOYMENTS_DIR, deploymentId);
+  
+  if (projectFilePath) {
+    // Real project deployment with package manager support
+    const tempProjectDir = path.join(TEMP_UPLOAD_DIR, `project-${deploymentId}`);
+    
+    try {
+      // Extract the uploaded project
+      console.log(`Extracting project for deployment ${deploymentId}`);
+      const projectPath = await extractZipFile(projectFilePath, tempProjectDir);
+      
+      // Validate the project structure
+      const validation = await validateProject(projectPath);
+      if (!validation.valid) {
+        throw new Error(`Project validation failed: ${validation.errors.join(', ')}`);
+      }
+      
+      // Detect package manager
+      const packageManager = await detectPackageManager(projectPath);
+      console.log(`Using ${packageManager.manager} for deployment ${deploymentId}`);
+      
+      // Check if package manager is available
+      if (!(await isPackageManagerAvailable(packageManager.command))) {
+        throw new Error(`Package manager '${packageManager.command}' is not available on the system`);
+      }
+      
+      // Install dependencies
+      console.log(`Installing dependencies for deployment ${deploymentId}`);
+      const installResult = await installDependencies(projectPath, packageManager);
+      if (!installResult.success) {
+        throw new Error(`Dependency installation failed: ${installResult.output}`);
+      }
+      
+      // Build the project
+      console.log(`Building project for deployment ${deploymentId}`);
+      const buildResult = await buildProject(projectPath, packageManager);
+      if (!buildResult.success) {
+        throw new Error(`Build failed: ${buildResult.output}`);
+      }
+      
+      // Detect and copy build output
+      const buildOutputPath = await detectBuildOutput(projectPath);
+      await copyBuildOutput(buildOutputPath, deploymentDir);
+      
+      // Parse package.json for metadata
+      const packageJson = await parsePackageJson(projectPath);
+      console.log(`Successfully deployed ${packageJson.name || 'project'} (${deploymentId})`);
+      
+      // Cleanup
+      await cleanupTempFiles([projectFilePath]);
+      await fs.rm(tempProjectDir, { recursive: true, force: true });
+      
+      return { 
+        success: true, 
+        deploymentDir,
+        projectName: packageJson.name,
+        packageManager: packageManager.manager
+      };
+      
+    } catch (error) {
+      // Cleanup on failure
+      await cleanupTempFiles([projectFilePath]);
+      await fs.rm(tempProjectDir, { recursive: true, force: true }).catch(() => {});
+      await fs.rm(deploymentDir, { recursive: true, force: true }).catch(() => {});
+      
+      throw error;
+    }
+  } else {
+    // Fallback to sample app deployment
+    await fs.mkdir(deploymentDir, { recursive: true });
+    await copyDirectory(SAMPLE_APP_DIR, deploymentDir);
+    console.log(`Sample app deployed for ${deploymentId}`);
+    return { 
+      success: true, 
+      deploymentDir,
+      projectName: 'Sample App',
+      packageManager: 'none'
+    };
   }
-  
-  // Copy client build files to public directory
-  await copyDirectory(CLIENT_DIST_DIR, PUBLIC_DIR);
-  
-  // Fix asset paths in the HTML file
-  const htmlFilePath = path.join(PUBLIC_DIR, 'index.html');
-  await fixHtmlAssetPaths(htmlFilePath);
-  
-  console.log('Deployment files generated in public folder');
-  return PUBLIC_DIR;
 }
 
-// Initialize public directory on startup
+// Initialize directories on startup
 await ensurePublicDirectory();
+await ensureDeploymentsDirectory();
+await ensureTempUploadDirectory();
 
 // Middleware
 app.use(cors({
@@ -107,8 +234,21 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
-// Serve static files from public directory
+// Serve static files from public directory (for dashboard)
 app.use(express.static(PUBLIC_DIR));
+
+// Serve deployment-specific static files
+app.use('/deployments/:deploymentId', (req, res, next) => {
+  const { deploymentId } = req.params;
+  const deploymentDir = path.join(DEPLOYMENTS_DIR, deploymentId);
+  
+  // Check if deployment directory exists
+  try {
+    express.static(deploymentDir)(req, res, next);
+  } catch (error) {
+    next();
+  }
+});
 
 // Simple user store (in production, this would be in the database)
 const users = new Map();
@@ -274,24 +414,29 @@ app.get('/api/projects/:projectId/deployments', requireAuth, async (req, res) =>
   }
 });
 
-app.post('/api/projects/:projectId/deploy', requireAuth, async (req, res) => {
+app.post('/api/projects/:projectId/deploy', requireAuth, upload.single('projectFile'), async (req, res) => {
   try {
     const { projectId } = req.params;
     const { commitMessage } = req.body;
+    const projectFile = req.file;
     
     // Verify project belongs to user
     const project = await db.select().from(projects).where(eq(projects.id, projectId));
     if (!project.length || project[0].userId !== req.user.userId) {
+      if (projectFile) {
+        await cleanupTempFiles([projectFile.path]);
+      }
       return res.status(404).json({ error: 'Project not found' });
     }
     
     const deploymentId = nanoid();
+    const deploymentUrl = `http://localhost:${PORT}/deployments/${deploymentId}/`;
     const deployment = {
       id: deploymentId,
       projectId,
       status: 'pending',
-      url: `http://localhost:${PORT}`,
-      commitMessage: commitMessage || 'Deploy from dashboard',
+      url: deploymentUrl,
+      commitMessage: commitMessage || (projectFile ? 'Deploy from uploaded ZIP' : 'Deploy sample app'),
       createdAt: new Date()
     };
     
@@ -308,20 +453,26 @@ app.post('/api/projects/:projectId/deploy', requireAuth, async (req, res) => {
         // Generate deployment files
         setTimeout(async () => {
           try {
-            await generateDeploymentFiles();
+            const result = await generateDeploymentFiles(deploymentId, projectFile?.path);
             
-            // Update to success status
+            // Update to success status with metadata
             await db.update(deployments)
-              .set({ status: 'success' })
+              .set({ 
+                status: 'success',
+                commitMessage: `${deployment.commitMessage} (${result.projectName}, ${result.packageManager})`
+              })
               .where(eq(deployments.id, deploymentId));
             
             console.log(`Deployment ${deploymentId} completed successfully`);
           } catch (fileError) {
             console.error('Error generating deployment files:', fileError);
             
-            // Update to error status
+            // Update to error status with error message
             await db.update(deployments)
-              .set({ status: 'error' })
+              .set({ 
+                status: 'error',
+                commitMessage: `${deployment.commitMessage} - Error: ${fileError.message}`
+              })
               .where(eq(deployments.id, deploymentId));
           }
         }, 3000);
@@ -338,8 +489,26 @@ app.post('/api/projects/:projectId/deploy', requireAuth, async (req, res) => {
     res.json(deployment);
   } catch (error) {
     console.error('Deployment creation error:', error);
+    if (req.file) {
+      await cleanupTempFiles([req.file.path]);
+    }
     res.status(500).json({ error: 'Failed to create deployment' });
   }
+});
+
+// Package manager info route
+app.get('/api/package-managers', async (req, res) => {
+  const managers = ['npm', 'yarn', 'pnpm', 'bun'];
+  const available = {};
+  
+  for (const manager of managers) {
+    available[manager] = await isPackageManagerAvailable(manager);
+  }
+  
+  res.json({
+    available,
+    recommended: available.bun ? 'bun' : available.pnpm ? 'pnpm' : available.yarn ? 'yarn' : 'npm'
+  });
 });
 
 // Health check

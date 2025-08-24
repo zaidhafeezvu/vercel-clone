@@ -30,7 +30,38 @@ export const api = {
     });
     
     if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`);
+      const errorText = await response.text();
+      let errorMessage;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error || response.statusText;
+      } catch {
+        errorMessage = errorText || response.statusText;
+      }
+      throw new Error(`API Error: ${errorMessage}`);
+    }
+    
+    return response.json();
+  },
+
+  async postFormData(endpoint, formData, options = {}) {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
+      ...options,
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error || response.statusText;
+      } catch {
+        errorMessage = errorText || response.statusText;
+      }
+      throw new Error(`API Error: ${errorMessage}`);
     }
     
     return response.json();
@@ -51,5 +82,17 @@ export const api = {
 
   createDeployment(projectId, data) {
     return this.post(`/projects/${projectId}/deploy`, data);
+  },
+
+  createDeploymentWithFile(projectId, file, data = {}) {
+    const formData = new FormData();
+    formData.append('projectFile', file);
+    formData.append('commitMessage', data.commitMessage || `Deploy from uploaded ZIP: ${file.name}`);
+    
+    return this.postFormData(`/projects/${projectId}/deploy`, formData);
+  },
+
+  getPackageManagers() {
+    return this.get('/package-managers');
   },
 };
