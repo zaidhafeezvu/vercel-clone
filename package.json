@@ -13,10 +13,15 @@
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
+    "dev:go": "concurrently \"npm run dev:client\" \"npm run dev:go-server\"",
+    "dev:go-server": "cd go-server && ./bin/server",
     "build": "npm run build:client && npm run build:server",
     "build:client": "cd client && npm run build",
     "build:server": "cd server && npm run build",
-    "install:all": "npm install && cd client && npm install && cd ../server && npm install"
+    "build:go": "cd go-server && go build -o bin/server cmd/server/main.go",
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install && cd ../go-server && go mod tidy",
+    "switch:node": "./scripts/switch-backend.sh node",
+    "switch:go": "./scripts/switch-backend.sh go"
   },
   "workspaces": [
     "client",

@@ -79,3 +79,25 @@ temp/
 
 # Generated deployment files
 public/
+
+# Temporary upload and deployment directories
+temp-uploads/
+deployments/
+
+# Go binaries and build artifacts
+go-server/bin/
+go-server/tmp/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test binary, built with `go test -c`
+*.test
+
+# Go coverage files
+*.out
+
+# Go workspace file
+go.work
