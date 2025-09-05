@@ -6,20 +6,19 @@
   "devDependencies": {
     "concurrently": "^8.2.2"
   },
-  "description": "A minimal full-stack Vercel clone",
-  "keywords": ["vercel", "clone", "deployment", "react", "express"],
+  "description": "A minimal full-stack Vercel clone with high-performance Go backend",
+  "keywords": ["vercel", "clone", "deployment", "react", "go", "gin"],
   "license": "MIT",
   "scripts": {
-    "dev": "concurrently \"bun run dev:client\" \"bun run dev:server\"",
-    "dev:client": "cd client && bun run dev",
-    "dev:server": "cd server && bun run dev",
-    "build": "bun run build:client && bun run build:server",
-    "build:client": "cd client && bun run build",
-    "build:server": "cd server && bun run build",
-    "install:all": "bun install && cd client && bun install && cd ../server && bun install"
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd go-server && ./bin/server",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "cd client && npm run build",
+    "build:server": "cd go-server && go build -o bin/server cmd/server/main.go",
+    "install:all": "npm install && cd client && npm install && cd ../go-server && go mod tidy"
   },
   "workspaces": [
-    "client",
-    "server"
+    "client"
   ]
 }
